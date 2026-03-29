@@ -10,7 +10,8 @@ import {
   Modal,
   SafeAreaView,
   StatusBar,
-Linking,
+  Alert,
+  Linking,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import {
@@ -20,7 +21,7 @@ import {
 } from 'expo-file-system/legacy';
 import { Video, ResizeMode } from 'expo-av';
 import * as VideoThumbnails from 'expo-video-thumbnails';
-import Pdf from 'react-native-pdf';
+import { WebView } from 'react-native-webview';
 import { Message, Attachment } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import staticTheme from '../constants/theme';
@@ -78,10 +79,12 @@ function AttachmentVideo({ attachment }: { attachment: Attachment }) {
   }, [attachment]);
 
   const handlePress = () => {
-    if (!attachment.data) return;
-    // Use data URI directly for playback — avoids re-writing large base64 to disk on the UI thread
-    const mimeType = attachment.mimeType || 'video/mp4';
-    setVideoUri(`data:${mimeType};base64,${attachment.data}`);
+    if (!cachedPath) {
+      Alert.alert('Video still loading, try again');
+      return;
+    }
+    // Use the cached file path -- expo-av Video doesn't support data URIs
+    setVideoUri(cachedPath);
     setVideoModalVisible(true);
   };
 
@@ -91,10 +94,11 @@ function AttachmentVideo({ attachment }: { attachment: Attachment }) {
         style={[styles.videoPlaceholder, { backgroundColor: theme.colors.surface }]}
         onPress={handlePress}
         activeOpacity={0.8}
+        disabled={loading && !cachedPath}
       >
         <Feather name="video" size={24} color={theme.colors.textSecondary} />
         <Text style={[styles.videoLabel, { color: theme.colors.textSecondary }]}>
-          {attachment.filename || 'video.mp4'}
+          {loading ? 'Loading video...' : (attachment.filename || 'video.mp4')}
         </Text>
       </TouchableOpacity>
     );
@@ -141,10 +145,11 @@ function AttachmentVideo({ attachment }: { attachment: Attachment }) {
           {videoUri ? (
             <Video
               source={{ uri: videoUri }}
-              style={styles.videoPlayer}
+              style={{ flex: 1, width: '100%' }}
+              useNativeControls
               resizeMode={ResizeMode.CONTAIN}
               shouldPlay
-              useNativeControls
+              isLooping={false}
             />
           ) : null}
         </TouchableOpacity>
@@ -207,19 +212,61 @@ function AttachmentImage({ attachment }: { attachment: Attachment }) {
   );
 }
 
-/** File attachment — opens PDF inline, falls back to system handler for other types */
+/** Build an HTML string that renders a PDF from base64 data using pdf.js */
+const pdfHtml = (base64Data: string) => `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=3">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #1a1a1a; overflow-x: hidden; }
+    canvas { display: block; margin: 8px auto; max-width: 100%; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+    #loading { color: #aaa; text-align: center; padding: 40px; font-family: sans-serif; }
+  </style>
+</head>
+<body>
+  <div id="loading">Loading PDF...</div>
+  <div id="container"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const base64 = '${base64Data}';
+    const raw = atob(base64);
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    pdfjsLib.getDocument({ data: bytes }).promise.then(pdf => {
+      document.getElementById('loading').style.display = 'none';
+      for (let p = 1; p <= pdf.numPages; p++) {
+        pdf.getPage(p).then(page => {
+          const scale = window.innerWidth / page.getViewport({ scale: 1 }).width;
+          const viewport = page.getViewport({ scale });
+          const canvas = document.createElement('canvas');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          document.getElementById('container').appendChild(canvas);
+          page.render({ canvasContext: canvas.getContext('2d'), viewport });
+        });
+      }
+    }).catch(e => {
+      document.getElementById('loading').textContent = 'Error loading PDF: ' + e.message;
+    });
+  </script>
+</body>
+</html>
+`;
+
+/** File attachment — opens PDF inline via pdf.js, falls back to system handler for other types */
 function AttachmentFile({ attachment }: { attachment: Attachment }) {
   const { theme } = useTheme();
   const [pdfModalVisible, setPdfModalVisible] = useState(false);
-  const [pdfUri, setPdfUri] = useState<string | null>(null);
 
   const handlePress = async () => {
     if (!attachment.data) return;
-    const path = await writeToCache(attachment);
     if (isPdf(attachment)) {
-      setPdfUri(path);
       setPdfModalVisible(true);
     } else {
+      const path = await writeToCache(attachment);
       await Linking.openURL(path);
     }
   };
@@ -237,7 +284,7 @@ function AttachmentFile({ attachment }: { attachment: Attachment }) {
         </Text>
       </TouchableOpacity>
 
-      {/* Inline PDF viewer modal */}
+      {/* Inline PDF viewer modal using pdf.js */}
       <Modal
         visible={pdfModalVisible}
         animationType="slide"
@@ -252,13 +299,12 @@ function AttachmentFile({ attachment }: { attachment: Attachment }) {
           >
             <Feather name="x" size={24} color="#fff" />
           </TouchableOpacity>
-          {pdfUri ? (
-            <Pdf
-              source={{ uri: pdfUri, cache: true }}
-              style={styles.pdfViewer}
-              onError={(error) => console.log('PDF error:', error)}
-            />
-          ) : null}
+          <WebView
+            source={{ html: pdfHtml(attachment.data || '') }}
+            style={{ flex: 1 }}
+            javaScriptEnabled={true}
+            originWhitelist={['*']}
+          />
         </SafeAreaView>
       </Modal>
     </>
