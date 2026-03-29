@@ -1,7 +1,18 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Image, Dimensions, Animated } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  Dimensions,
+  Animated,
+  TouchableOpacity,
+  Modal,
+  SafeAreaView,
+  StatusBar,
+} from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { Message } from '../types';
+import { Message, Attachment } from '../types';
 import theme from '../constants/theme';
 
 interface MessageBubbleProps {
@@ -10,6 +21,60 @@ interface MessageBubbleProps {
 
 const screenWidth = Dimensions.get('window').width;
 const maxWidth = screenWidth * theme.layout.maxMessageWidth;
+const MAX_THUMB_HEIGHT = 300;
+
+/** Render a single attachment image thumbnail with tap-to-fullscreen */
+function AttachmentImage({ attachment }: { attachment: Attachment }) {
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  const imageSource = attachment.data
+    ? { uri: `data:${attachment.mimeType};base64,${attachment.data}` }
+    : attachment.url
+    ? { uri: attachment.url }
+    : null;
+
+  if (!imageSource) return null;
+
+  return (
+    <>
+      <TouchableOpacity
+        onPress={() => setLightboxOpen(true)}
+        activeOpacity={0.85}
+        style={styles.attachmentThumb}
+      >
+        <Image
+          source={imageSource}
+          style={styles.attachmentImage}
+          resizeMode="contain"
+        />
+      </TouchableOpacity>
+
+      <Modal
+        visible={lightboxOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLightboxOpen(false)}
+        statusBarTranslucent
+      >
+        <SafeAreaView style={styles.lightboxContainer}>
+          <StatusBar barStyle="light-content" backgroundColor="#000" />
+          <TouchableOpacity
+            style={styles.lightboxClose}
+            onPress={() => setLightboxOpen(false)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Feather name="x" size={22} color={theme.colors.textPrimary} />
+          </TouchableOpacity>
+          <Image
+            source={imageSource}
+            style={styles.lightboxImage}
+            resizeMode="contain"
+          />
+        </SafeAreaView>
+      </Modal>
+    </>
+  );
+}
 
 export default function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.isUser;
@@ -36,6 +101,20 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const imageAttachments =
+    message.attachments?.filter((a) => a.type === 'image') ?? [];
+
+  const renderAttachments = () => {
+    if (imageAttachments.length === 0) return null;
+    return (
+      <View style={styles.attachmentsContainer}>
+        {imageAttachments.map((att, idx) => (
+          <AttachmentImage key={idx} attachment={att} />
+        ))}
+      </View>
+    );
   };
 
   const renderContent = () => {
@@ -70,9 +149,14 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
 
       default:
         return (
-          <Text style={[styles.messageText, isUser ? styles.userText : styles.aiText]}>
-            {message.text}
-          </Text>
+          <View>
+            {renderAttachments()}
+            {message.text ? (
+              <Text style={[styles.messageText, isUser ? styles.userText : styles.aiText]}>
+                {message.text}
+              </Text>
+            ) : null}
+          </View>
         );
     }
   };
@@ -166,5 +250,41 @@ const styles = StyleSheet.create({
   },
   timestampAi: {
     color: theme.colors.textTertiary,
+  },
+  // Attachment styles
+  attachmentsContainer: {
+    gap: 6,
+    marginBottom: 6,
+  },
+  attachmentThumb: {
+    borderRadius: theme.radius.md,
+    overflow: 'hidden',
+    width: maxWidth - 32, // account for padding
+    maxHeight: MAX_THUMB_HEIGHT,
+    backgroundColor: theme.colors.surface,
+  },
+  attachmentImage: {
+    width: maxWidth - 32,
+    height: MAX_THUMB_HEIGHT,
+  },
+  // Lightbox
+  lightboxContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  lightboxClose: {
+    position: 'absolute',
+    top: 52,
+    right: 20,
+    zIndex: 10,
+    padding: 8,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.round,
+  },
+  lightboxImage: {
+    width: screenWidth,
+    height: Dimensions.get('window').height * 0.85,
   },
 });

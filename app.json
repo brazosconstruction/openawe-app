@@ -31,7 +31,16 @@
     "scheme": "openawe",
     "owner": "brazostx",
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#0A0A0A",
+          "sounds": [],
+          "iosDisplayInForeground": true
+        }
+      ]
     ]
   }
 }

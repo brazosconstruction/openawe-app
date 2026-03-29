@@ -25,6 +25,14 @@ export interface MessageMetadata {
   type?: string;
 }
 
+export interface Attachment {
+  type: 'image' | 'file' | 'video';
+  data?: string;       // base64-encoded content
+  url?: string;        // remote URL
+  mimeType: string;
+  filename?: string;
+}
+
 export interface Message {
   id: string;
   text: string;
@@ -32,6 +40,7 @@ export interface Message {
   isUser: boolean;
   type: 'text' | 'image' | 'audio';
   metadata?: MessageMetadata;
+  attachments?: Attachment[];
 }
 
 export interface ConnectionState {

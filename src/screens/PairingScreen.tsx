@@ -502,6 +502,7 @@ const styles = StyleSheet.create({
     minHeight: 56,
     textAlign: 'center',
     letterSpacing: 1,
+    borderRadius: theme.radius.lg,
   },
   statusRow: {
     flexDirection: 'row',

@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
-import { Message, ConnectionState, MessageMetadata } from '../types';
+import { Message, ConnectionState, MessageMetadata, Attachment } from '../types';
 import { RelayService } from '../services/relay';
 import { StorageService } from '../services/storage';
 import MessageBubble from '../components/MessageBubble';
@@ -114,6 +114,7 @@ export default function ChatScreen() {
 
   const relay = RelayService.getInstance();
   const storage = StorageService.getInstance();
+  const { theme } = useTheme();
 
   useEffect(() => {
     initializeChat();
@@ -188,8 +189,10 @@ export default function ChatScreen() {
     }
   }, []);
 
-  const sendMessage = async (text: string, metadata?: MessageMetadata) => {
-    if (!text.trim() || connectionState.status !== 'connected') return;
+  const sendMessage = async (text: string, metadata?: MessageMetadata, attachments?: Attachment[]) => {
+    const hasAttachments = attachments && attachments.length > 0;
+    if (!text.trim() && !hasAttachments) return;
+    if (connectionState.status !== 'connected') return;
 
     try {
       const userMessage: Message = {
@@ -197,8 +200,9 @@ export default function ChatScreen() {
         text: text.trim(),
         timestamp: Date.now(),
         isUser: true,
-        type: (metadata?.type as Message['type']) || 'text',
+        type: hasAttachments ? 'image' : ((metadata?.type as Message['type']) || 'text'),
         metadata,
+        attachments,
       };
 
       setMessages((prev) => {
@@ -210,7 +214,7 @@ export default function ChatScreen() {
       setInputText('');
       setIsThinking(true);
 
-      await relay.sendMessage(text.trim());
+      await relay.sendMessage(text.trim(), attachments);
       await Haptics.selectionAsync();
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -230,7 +234,7 @@ export default function ChatScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['bottom']}>
       <ConnectionIndicator connectionState={connectionState} />
 
       <KeyboardAvoidingView
