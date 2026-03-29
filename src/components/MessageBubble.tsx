@@ -10,7 +10,6 @@ import {
   Modal,
   SafeAreaView,
   StatusBar,
-  Linking,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import {
@@ -20,6 +19,7 @@ import {
 } from 'expo-file-system/legacy';
 import { Video, ResizeMode } from 'expo-av';
 import * as VideoThumbnails from 'expo-video-thumbnails';
+import * as Sharing from 'expo-sharing';
 import { Message, Attachment } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import staticTheme from '../constants/theme';
@@ -42,11 +42,16 @@ async function writeToCache(attachment: Attachment): Promise<string> {
   return tempPath;
 }
 
-/** Open a PDF (or any file) via iOS Quick Look using Linking */
-async function openPdf(attachment: Attachment): Promise<void> {
+/** Open a file via expo-sharing (presents iOS share sheet with Quick Look at top) */
+async function openFile(attachment: Attachment): Promise<void> {
   if (!attachment.data) return;
   const path = await writeToCache(attachment);
-  await Linking.openURL('file://' + path);
+  const isAvailable = await Sharing.isAvailableAsync();
+  if (!isAvailable) return;
+  await Sharing.shareAsync(path, {
+    mimeType: attachment.mimeType || 'application/octet-stream',
+    dialogTitle: attachment.filename || 'Open file',
+  });
 }
 
 /** Video thumbnail with play-button overlay and tap-to-fullscreen */
@@ -269,7 +274,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
           <TouchableOpacity
             key={`file-${idx}`}
             style={[styles.videoPlaceholder, { backgroundColor: theme.colors.surface }]}
-            onPress={() => openPdf(att)}
+            onPress={() => openFile(att)}
             activeOpacity={0.8}
           >
             <Feather name="file-text" size={24} color={theme.colors.textSecondary} />

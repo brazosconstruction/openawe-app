@@ -151,11 +151,22 @@ export default function ChatInput({
   const pickDocument = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
         copyToCacheDirectory: true,
+        multiple: false,
       });
       if (!result.canceled && result.assets.length > 0) {
         const asset = result.assets[0];
-        // Read file as base64 so client bridge can save and pass to OpenClaw
+        const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25 MB
+        if (asset.size && asset.size > MAX_FILE_BYTES) {
+          Alert.alert('File too large', 'Please choose a file under 25 MB.');
+          return;
+        }
+        // Show loading state for larger files
+        const isLarge = asset.size ? asset.size > 2 * 1024 * 1024 : false;
+        if (isLarge) {
+          Haptics.selectionAsync();
+        }
         let base64Data = '';
         try {
           console.log('[file] Reading:', asset.uri, 'size:', asset.size);
@@ -163,6 +174,8 @@ export default function ChatInput({
           console.log('[file] base64 length:', base64Data?.length ?? 0);
         } catch (e) {
           console.error('[file] Could not read file:', e);
+          Alert.alert('Error', 'Could not read the file. It may be too large or inaccessible.');
+          return;
         }
         const attachment: Attachment = {
           type: 'file',

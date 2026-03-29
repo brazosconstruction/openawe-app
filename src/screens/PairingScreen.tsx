@@ -127,6 +127,7 @@ export default function PairingScreen() {
   const [pairingCode, setPairingCode] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const navigation = useNavigation();
   const { theme: liveTheme } = useTheme();
@@ -270,6 +271,7 @@ export default function PairingScreen() {
     }
 
     setIsConnecting(true);
+    setErrorMessage('');
     setConnectionStatus('Looking up pairing code...');
 
     try {
@@ -310,10 +312,9 @@ export default function PairingScreen() {
       }, 1000);
     } catch (error) {
       console.error('Pairing failed:', error);
-      Alert.alert(
-        'Pairing Failed',
-        error instanceof Error ? error.message : 'An unknown error occurred',
-      );
+      const msg = error instanceof Error ? error.message : 'An unknown error occurred';
+      const isExpired = msg.toLowerCase().includes('expired') || msg.toLowerCase().includes('invalid');
+      setErrorMessage(isExpired ? 'Code expired. Ask for a new code.' : msg);
       setIsConnecting(false);
       setConnectionStatus('');
     }
@@ -377,6 +378,10 @@ export default function PairingScreen() {
                 <ActivityIndicator size="small" color={lc.textSecondary} />
                 <Text style={[styles.statusText, { color: lc.textSecondary }]}>{connectionStatus}</Text>
               </Animated.View>
+            ) : null}
+
+            {errorMessage ? (
+              <Text style={styles.errorText}>{errorMessage}</Text>
             ) : null}
 
             <TouchableOpacity
@@ -515,6 +520,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '300',
     color: theme.colors.textSecondary,
+  },
+  errorText: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#FF4D4D',
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 20,
   },
   connectButton: {
     borderWidth: 1,
