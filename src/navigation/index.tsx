@@ -117,7 +117,21 @@ export default function AppNavigator() {
   const checkPairingStatus = useCallback(async () => {
     try {
       const storage = StorageService.getInstance();
-      const paired = await storage.isPaired();
+      // Primary check: IS_PAIRED flag
+      let paired = await storage.isPaired();
+
+      // Fallback: if flag is missing but relay config exists + connected recently (< 24h), treat as paired
+      if (!paired) {
+        const relayConfig = await storage.getRelayConfig();
+        const lastConnectedAt = await storage.getLastConnectedAt();
+        const recentThreshold = 24 * 60 * 60 * 1000; // 24 hours
+        if (relayConfig && lastConnectedAt && (Date.now() - lastConnectedAt) < recentThreshold) {
+          paired = true;
+          // Repair the IS_PAIRED flag
+          await storage.storeRelayConfig(relayConfig);
+        }
+      }
+
       setInitialPaired(paired);
     } catch (error) {
       console.error('Failed to check pairing status:', error);

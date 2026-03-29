@@ -7,6 +7,7 @@ const KEYS = {
   RELAY_CONFIG: 'openawe_relay_config',
   MESSAGES: 'openawe_messages',
   IS_PAIRED: 'openawe_is_paired',
+  LAST_CONNECTED_AT: 'openawe_last_connected_at',
 } as const;
 
 export class StorageService {
@@ -93,6 +94,25 @@ export class StorageService {
   }
 
   /**
+   * Store the timestamp of the last successful connection
+   */
+  async storeLastConnectedAt(timestamp: number): Promise<void> {
+    await AsyncStorage.setItem(KEYS.LAST_CONNECTED_AT, String(timestamp));
+  }
+
+  /**
+   * Retrieve the last connected timestamp (ms). Returns null if never set.
+   */
+  async getLastConnectedAt(): Promise<number | null> {
+    try {
+      const val = await AsyncStorage.getItem(KEYS.LAST_CONNECTED_AT);
+      return val ? parseInt(val, 10) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Clear all stored data (for logout/unpair)
    */
   async clearAll(): Promise<void> {
@@ -100,5 +120,6 @@ export class StorageService {
     await AsyncStorage.removeItem(KEYS.RELAY_CONFIG);
     await AsyncStorage.removeItem(KEYS.MESSAGES);
     await AsyncStorage.removeItem(KEYS.IS_PAIRED);
+    await AsyncStorage.removeItem(KEYS.LAST_CONNECTED_AT);
   }
 }

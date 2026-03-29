@@ -108,6 +108,8 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
 
   const imageAttachments =
     message.attachments?.filter((a) => a.type === 'image') ?? [];
+  const videoAttachments =
+    message.attachments?.filter((a) => a.type === 'video') ?? [];
 
   // Dynamic bubble colors based on live theme
   const userBubbleBg = theme.colors.surfaceElevated;
@@ -116,11 +118,19 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
   const aiBubblePadding = { paddingHorizontal: isDark ? 4 : 16, paddingVertical: isDark ? 10 : 10 };
 
   const renderAttachments = () => {
-    if (imageAttachments.length === 0) return null;
+    if (imageAttachments.length === 0 && videoAttachments.length === 0) return null;
     return (
       <View style={styles.attachmentsContainer}>
         {imageAttachments.map((att, idx) => (
-          <AttachmentImage key={idx} attachment={att} />
+          <AttachmentImage key={`img-${idx}`} attachment={att} />
+        ))}
+        {videoAttachments.map((att, idx) => (
+          <View key={`vid-${idx}`} style={[styles.videoPlaceholder, { backgroundColor: theme.colors.surface }]}>
+            <Feather name="video" size={24} color={theme.colors.textSecondary} />
+            <Text style={[styles.videoLabel, { color: theme.colors.textSecondary }]}>
+              {att.filename || 'video.mp4'}
+            </Text>
+          </View>
         ))}
       </View>
     );
@@ -270,6 +280,19 @@ const styles = StyleSheet.create({
   attachmentImage: {
     width: maxWidth - 32,
     height: MAX_THUMB_HEIGHT,
+  },
+  // Video placeholder
+  videoPlaceholder: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: staticTheme.radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  videoLabel: {
+    fontSize: 14,
+    fontWeight: '300',
   },
   // Lightbox
   lightboxContainer: {

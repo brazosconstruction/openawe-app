@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ConnectionState, RelayMessage, RelayConfig, KeyPair, Attachment } from '../types';
 
 export class RelayService extends EventEmitter {
@@ -217,12 +218,16 @@ export class RelayService extends EventEmitter {
         break;
 
       case 'status':
-        if (message.online) {
+        if (message.online || message.connected) {
           this.partnerOnline = true;
           this.setConnectionState({ partnerOnline: true });
           this.emit('partnerStatus', true);
+          // Persist last connected timestamp so app can auto-reconnect on next launch
+          const now = Date.now();
+          AsyncStorage.setItem('openawe_last_connected_at', String(now)).catch(() => {});
+          this.emit('hostOnline', { echoMode: !!message.echoMode });
         }
-        console.log('Relay status:', message.online, 'partnerRole:', message.partnerRole);
+        console.log('Relay status:', message.online, message.connected, 'partnerRole:', message.partnerRole);
         break;
 
       case 'error':

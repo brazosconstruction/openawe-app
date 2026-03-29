@@ -16,6 +16,7 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { Attachment, MessageMetadata } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import staticTheme from '../constants/theme';
@@ -153,11 +154,21 @@ export default function ChatInput({
       });
       if (!result.canceled && result.assets.length > 0) {
         const asset = result.assets[0];
+        // Read file as base64 so client bridge can save and pass to OpenClaw
+        let base64Data = '';
+        try {
+          base64Data = await FileSystem.readAsStringAsync(asset.uri, {
+            encoding: 'base64',
+          });
+        } catch (e) {
+          console.warn('Could not read file as base64:', e);
+        }
         const attachment: Attachment = {
           type: 'file',
           mimeType: asset.mimeType ?? 'application/octet-stream',
           filename: asset.name,
           url: asset.uri,
+          data: base64Data,
         };
         setPendingAttachments((prev) => [...prev, attachment]);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -167,24 +178,58 @@ export default function ChatInput({
     }
   };
 
+  const pickVideo = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission required', 'Please allow access to your photo library.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsEditing: false,
+      quality: 1,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      const uri = result.assets[0].uri;
+      let base64Data = '';
+      try {
+        base64Data = await FileSystem.readAsStringAsync(uri, {
+          encoding: 'base64',
+        });
+      } catch (e) {
+        console.warn('Could not read video as base64:', e);
+      }
+      const attachment: Attachment = {
+        type: 'video',
+        mimeType: 'video/mp4',
+        filename: 'video.mp4',
+        data: base64Data,
+      };
+      setPendingAttachments((prev) => [...prev, attachment]);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  };
+
   const showAttachmentPicker = () => {
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          options: ['Cancel', 'Camera', 'Photo Library', 'File'],
+          options: ['Cancel', 'Camera', 'Photo Library', 'Video', 'File'],
           cancelButtonIndex: 0,
           tintColor: theme.colors.textPrimary,
         },
         (index) => {
           if (index === 1) pickFromCamera();
           else if (index === 2) pickFromLibrary();
-          else if (index === 3) pickDocument();
+          else if (index === 3) pickVideo();
+          else if (index === 4) pickDocument();
         }
       );
     } else {
       Alert.alert('Attach', 'Choose an attachment type', [
         { text: 'Camera', onPress: pickFromCamera },
         { text: 'Photo Library', onPress: pickFromLibrary },
+        { text: 'Video', onPress: pickVideo },
         { text: 'File', onPress: pickDocument },
         { text: 'Cancel', style: 'cancel' },
       ]);
@@ -230,6 +275,10 @@ export default function ChatInput({
                   style={styles.previewImage}
                   resizeMode="cover"
                 />
+              ) : att.type === 'video' ? (
+                <View style={[styles.previewFilePlaceholder, { backgroundColor: theme.colors.surfaceElevated }]}>
+                  <Feather name="video" size={20} color={theme.colors.textTertiary} />
+                </View>
               ) : (
                 <View style={[styles.previewFilePlaceholder, { backgroundColor: theme.colors.surfaceElevated }]}>
                   <Feather name="file" size={20} color={theme.colors.textTertiary} />
