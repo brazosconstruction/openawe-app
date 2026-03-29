@@ -10,6 +10,7 @@ import {
   Modal,
   SafeAreaView,
   StatusBar,
+Linking,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import {
@@ -19,7 +20,7 @@ import {
 } from 'expo-file-system/legacy';
 import { Video, ResizeMode } from 'expo-av';
 import * as VideoThumbnails from 'expo-video-thumbnails';
-import * as Sharing from 'expo-sharing';
+import Pdf from 'react-native-pdf';
 import { Message, Attachment } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import staticTheme from '../constants/theme';
@@ -42,16 +43,11 @@ async function writeToCache(attachment: Attachment): Promise<string> {
   return tempPath;
 }
 
-/** Open a file via expo-sharing (presents iOS share sheet with Quick Look at top) */
-async function openFile(attachment: Attachment): Promise<void> {
-  if (!attachment.data) return;
-  const path = await writeToCache(attachment);
-  const isAvailable = await Sharing.isAvailableAsync();
-  if (!isAvailable) return;
-  await Sharing.shareAsync(path, {
-    mimeType: attachment.mimeType || 'application/octet-stream',
-    dialogTitle: attachment.filename || 'Open file',
-  });
+/** Check if attachment is a PDF */
+function isPdf(attachment: Attachment): boolean {
+  if (attachment.mimeType === 'application/pdf') return true;
+  const filename = attachment.filename ?? '';
+  return filename.toLowerCase().endsWith('.pdf');
 }
 
 /** Video thumbnail with play-button overlay and tap-to-fullscreen */
@@ -211,6 +207,64 @@ function AttachmentImage({ attachment }: { attachment: Attachment }) {
   );
 }
 
+/** File attachment — opens PDF inline, falls back to system handler for other types */
+function AttachmentFile({ attachment }: { attachment: Attachment }) {
+  const { theme } = useTheme();
+  const [pdfModalVisible, setPdfModalVisible] = useState(false);
+  const [pdfUri, setPdfUri] = useState<string | null>(null);
+
+  const handlePress = async () => {
+    if (!attachment.data) return;
+    const path = await writeToCache(attachment);
+    if (isPdf(attachment)) {
+      setPdfUri(path);
+      setPdfModalVisible(true);
+    } else {
+      await Linking.openURL(path);
+    }
+  };
+
+  return (
+    <>
+      <TouchableOpacity
+        style={[styles.videoPlaceholder, { backgroundColor: theme.colors.surface }]}
+        onPress={handlePress}
+        activeOpacity={0.8}
+      >
+        <Feather name="file-text" size={24} color={theme.colors.textSecondary} />
+        <Text style={[styles.videoLabel, { color: theme.colors.textSecondary }]}>
+          {attachment.filename || 'file'}
+        </Text>
+      </TouchableOpacity>
+
+      {/* Inline PDF viewer modal */}
+      <Modal
+        visible={pdfModalVisible}
+        animationType="slide"
+        onRequestClose={() => setPdfModalVisible(false)}
+        statusBarTranslucent
+      >
+        <SafeAreaView style={styles.pdfModalContainer}>
+          <TouchableOpacity
+            style={styles.pdfModalClose}
+            onPress={() => setPdfModalVisible(false)}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Feather name="x" size={24} color="#fff" />
+          </TouchableOpacity>
+          {pdfUri ? (
+            <Pdf
+              source={{ uri: pdfUri, cache: true }}
+              style={styles.pdfViewer}
+              onError={(error) => console.log('PDF error:', error)}
+            />
+          ) : null}
+        </SafeAreaView>
+      </Modal>
+    </>
+  );
+}
+
 export default function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.isUser;
   const { theme, isDark } = useTheme();
@@ -263,17 +317,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
           <AttachmentVideo key={`vid-${idx}`} attachment={att} />
         ))}
         {fileAttachments.map((att, idx) => (
-          <TouchableOpacity
-            key={`file-${idx}`}
-            style={[styles.videoPlaceholder, { backgroundColor: theme.colors.surface }]}
-            onPress={() => openFile(att)}
-            activeOpacity={0.8}
-          >
-            <Feather name="file-text" size={24} color={theme.colors.textSecondary} />
-            <Text style={[styles.videoLabel, { color: theme.colors.textSecondary }]}>
-              {att.filename || 'file'}
-            </Text>
-          </TouchableOpacity>
+          <AttachmentFile key={`file-${idx}`} attachment={att} />
         ))}
       </View>
     );
@@ -468,6 +512,19 @@ const styles = StyleSheet.create({
   videoPlayer: {
     width: Dimensions.get('window').width,
     height: Dimensions.get('window').height,
+  },
+  // PDF modal
+  pdfModalContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  pdfModalClose: {
+    padding: 16,
+    alignSelf: 'flex-end',
+  },
+  pdfViewer: {
+    flex: 1,
+    width: '100%',
   },
   // Lightbox
   lightboxContainer: {

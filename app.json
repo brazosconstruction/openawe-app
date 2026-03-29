@@ -13,7 +13,8 @@
     },
     "ios": {
       "bundleIdentifier": "com.openawe.app",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "usesIcloudStorage": true
     },
     "android": {
       "package": "com.openawe.app",
@@ -39,6 +40,12 @@
           "color": "#0A0A0A",
           "sounds": [],
           "iosDisplayInForeground": true
+        }
+      ],
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
         }
       ]
     ]
