@@ -110,6 +110,8 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
     message.attachments?.filter((a) => a.type === 'image') ?? [];
   const videoAttachments =
     message.attachments?.filter((a) => a.type === 'video') ?? [];
+  const fileAttachments =
+    message.attachments?.filter((a) => a.type === 'file') ?? [];
 
   // Dynamic bubble colors based on live theme
   const userBubbleBg = theme.colors.surfaceElevated;
@@ -118,7 +120,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
   const aiBubblePadding = { paddingHorizontal: isDark ? 4 : 16, paddingVertical: isDark ? 10 : 10 };
 
   const renderAttachments = () => {
-    if (imageAttachments.length === 0 && videoAttachments.length === 0) return null;
+    if (imageAttachments.length === 0 && videoAttachments.length === 0 && fileAttachments.length === 0) return null;
     return (
       <View style={styles.attachmentsContainer}>
         {imageAttachments.map((att, idx) => (
@@ -129,6 +131,14 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
             <Feather name="video" size={24} color={theme.colors.textSecondary} />
             <Text style={[styles.videoLabel, { color: theme.colors.textSecondary }]}>
               {att.filename || 'video.mp4'}
+            </Text>
+          </View>
+        ))}
+        {fileAttachments.map((att, idx) => (
+          <View key={`file-${idx}`} style={[styles.videoPlaceholder, { backgroundColor: theme.colors.surface }]}>
+            <Feather name="file-text" size={24} color={theme.colors.textSecondary} />
+            <Text style={[styles.videoLabel, { color: theme.colors.textSecondary }]}>
+              {att.filename || 'file'}
             </Text>
           </View>
         ))}
