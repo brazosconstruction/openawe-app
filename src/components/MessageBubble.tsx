@@ -10,6 +10,7 @@ import {
   Modal,
   SafeAreaView,
   StatusBar,
+  Linking,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import {
@@ -17,7 +18,7 @@ import {
   writeAsStringAsync,
   EncodingType,
 } from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
+import { Video, ResizeMode } from 'expo-av';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Message, Attachment } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
@@ -31,37 +32,40 @@ const screenWidth = Dimensions.get('window').width;
 const maxWidth = screenWidth * staticTheme.layout.maxMessageWidth;
 const MAX_THUMB_HEIGHT = 300;
 
-/** Write base64 attachment data to a temp file and share/open it */
-async function openAttachment(attachment: Attachment): Promise<void> {
-  if (!attachment.data) return;
+/** Write base64 attachment data to a temp cache file, return the path */
+async function writeToCache(attachment: Attachment): Promise<string> {
   const filename = attachment.filename || 'file';
   const tempPath = (cacheDirectory ?? '') + filename;
-  await writeAsStringAsync(tempPath, attachment.data, {
+  await writeAsStringAsync(tempPath, attachment.data ?? '', {
     encoding: EncodingType.Base64,
   });
-  const canShare = await Sharing.isAvailableAsync();
-  if (canShare) {
-    await Sharing.shareAsync(tempPath, { mimeType: attachment.mimeType });
-  }
+  return tempPath;
 }
 
-/** Video thumbnail with play-button overlay and tap-to-share */
+/** Open a PDF (or any file) via iOS Quick Look using Linking */
+async function openPdf(attachment: Attachment): Promise<void> {
+  if (!attachment.data) return;
+  const path = await writeToCache(attachment);
+  await Linking.openURL('file://' + path);
+}
+
+/** Video thumbnail with play-button overlay and tap-to-fullscreen */
 function AttachmentVideo({ attachment }: { attachment: Attachment }) {
   const { theme } = useTheme();
   const [thumbUri, setThumbUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [cachedPath, setCachedPath] = useState<string | null>(null);
+  const [videoModalVisible, setVideoModalVisible] = useState(false);
+  const [videoUri, setVideoUri] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         if (!attachment.data) return;
-        const filename = attachment.filename || 'video.mp4';
-        const tempPath = (cacheDirectory ?? '') + filename;
-        await writeAsStringAsync(tempPath, attachment.data, {
-          encoding: EncodingType.Base64,
-        });
-        const { uri } = await VideoThumbnails.getThumbnailAsync(tempPath, { time: 0 });
+        const path = await writeToCache(attachment);
+        if (!cancelled) setCachedPath(path);
+        const { uri } = await VideoThumbnails.getThumbnailAsync(path, { time: 0 });
         if (!cancelled) setThumbUri(uri);
       } catch {
         // fall back to icon view
@@ -72,11 +76,27 @@ function AttachmentVideo({ attachment }: { attachment: Attachment }) {
     return () => { cancelled = true; };
   }, [attachment]);
 
+  const handlePress = async () => {
+    try {
+      let path = cachedPath;
+      if (!path && attachment.data) {
+        path = await writeToCache(attachment);
+        setCachedPath(path);
+      }
+      if (path) {
+        setVideoUri('file://' + path);
+        setVideoModalVisible(true);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   if (loading || !thumbUri) {
     return (
       <TouchableOpacity
         style={[styles.videoPlaceholder, { backgroundColor: theme.colors.surface }]}
-        onPress={() => openAttachment(attachment)}
+        onPress={handlePress}
         activeOpacity={0.8}
       >
         <Feather name="video" size={24} color={theme.colors.textSecondary} />
@@ -88,18 +108,55 @@ function AttachmentVideo({ attachment }: { attachment: Attachment }) {
   }
 
   return (
-    <TouchableOpacity
-      style={[styles.attachmentThumb, { backgroundColor: theme.colors.surface }]}
-      onPress={() => openAttachment(attachment)}
-      activeOpacity={0.8}
-    >
-      <Image source={{ uri: thumbUri }} style={styles.attachmentImage} resizeMode="cover" />
-      <View style={styles.playOverlay}>
-        <View style={styles.playButton}>
-          <Feather name="play" size={28} color="#fff" />
+    <>
+      <TouchableOpacity
+        style={[styles.attachmentThumb, { backgroundColor: theme.colors.surface }]}
+        onPress={handlePress}
+        activeOpacity={0.8}
+      >
+        <Image source={{ uri: thumbUri }} style={styles.attachmentImage} resizeMode="cover" />
+        <View style={styles.playOverlay}>
+          <View style={styles.playButton}>
+            <Feather name="play" size={28} color="#fff" />
+          </View>
         </View>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+
+      {/* Fullscreen video modal */}
+      <Modal
+        visible={videoModalVisible}
+        transparent={false}
+        animationType="fade"
+        onRequestClose={() => setVideoModalVisible(false)}
+        statusBarTranslucent
+        supportedOrientations={['portrait', 'landscape']}
+      >
+        <TouchableOpacity
+          style={styles.videoModalContainer}
+          activeOpacity={1}
+          onPress={() => setVideoModalVisible(false)}
+        >
+          <StatusBar barStyle="light-content" backgroundColor="#000" hidden />
+          {/* X button */}
+          <TouchableOpacity
+            style={styles.videoModalClose}
+            onPress={() => setVideoModalVisible(false)}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Feather name="x" size={26} color="#fff" />
+          </TouchableOpacity>
+          {videoUri ? (
+            <Video
+              source={{ uri: videoUri }}
+              style={styles.videoPlayer}
+              resizeMode={ResizeMode.CONTAIN}
+              shouldPlay
+              useNativeControls
+            />
+          ) : null}
+        </TouchableOpacity>
+      </Modal>
+    </>
   );
 }
 
@@ -212,7 +269,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
           <TouchableOpacity
             key={`file-${idx}`}
             style={[styles.videoPlaceholder, { backgroundColor: theme.colors.surface }]}
-            onPress={() => openAttachment(att)}
+            onPress={() => openPdf(att)}
             activeOpacity={0.8}
           >
             <Feather name="file-text" size={24} color={theme.colors.textSecondary} />
@@ -396,6 +453,24 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  // Fullscreen video modal
+  videoModalContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoModalClose: {
+    position: 'absolute',
+    top: 52,
+    right: 20,
+    zIndex: 10,
+    padding: 8,
+  },
+  videoPlayer: {
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height,
   },
   // Lightbox
   lightboxContainer: {
