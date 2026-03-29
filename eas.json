@@ -1,0 +1,33 @@
+{
+  "cli": {
+    "version": ">= 13.2.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "ios": {
+        "simulator": true
+      }
+    },
+    "production": {
+      "ios": {
+        "simulator": false
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "info@greyback.net",
+        "appleTeamId": "TCR2AW2Q4A",
+        "ascAppId": "TBD",
+        "ascApiKeyPath": "/Users/sawyerkemp/.apple-keys/AuthKey_KK8ZS8LM9D.p8",
+        "ascApiKeyId": "KK8ZS8LM9D",
+        "ascApiKeyIssuerId": "b3ad3638-c3dc-4287-a86f-5d0f5b5a92d3"
+      }
+    }
+  }
+}
