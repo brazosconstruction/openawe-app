@@ -12,6 +12,13 @@ import {
   StatusBar,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import {
+  cacheDirectory,
+  writeAsStringAsync,
+  EncodingType,
+} from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Message, Attachment } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import staticTheme from '../constants/theme';
@@ -23,6 +30,78 @@ interface MessageBubbleProps {
 const screenWidth = Dimensions.get('window').width;
 const maxWidth = screenWidth * staticTheme.layout.maxMessageWidth;
 const MAX_THUMB_HEIGHT = 300;
+
+/** Write base64 attachment data to a temp file and share/open it */
+async function openAttachment(attachment: Attachment): Promise<void> {
+  if (!attachment.data) return;
+  const filename = attachment.filename || 'file';
+  const tempPath = (cacheDirectory ?? '') + filename;
+  await writeAsStringAsync(tempPath, attachment.data, {
+    encoding: EncodingType.Base64,
+  });
+  const canShare = await Sharing.isAvailableAsync();
+  if (canShare) {
+    await Sharing.shareAsync(tempPath, { mimeType: attachment.mimeType });
+  }
+}
+
+/** Video thumbnail with play-button overlay and tap-to-share */
+function AttachmentVideo({ attachment }: { attachment: Attachment }) {
+  const { theme } = useTheme();
+  const [thumbUri, setThumbUri] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!attachment.data) return;
+        const filename = attachment.filename || 'video.mp4';
+        const tempPath = (cacheDirectory ?? '') + filename;
+        await writeAsStringAsync(tempPath, attachment.data, {
+          encoding: EncodingType.Base64,
+        });
+        const { uri } = await VideoThumbnails.getThumbnailAsync(tempPath, { time: 0 });
+        if (!cancelled) setThumbUri(uri);
+      } catch {
+        // fall back to icon view
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [attachment]);
+
+  if (loading || !thumbUri) {
+    return (
+      <TouchableOpacity
+        style={[styles.videoPlaceholder, { backgroundColor: theme.colors.surface }]}
+        onPress={() => openAttachment(attachment)}
+        activeOpacity={0.8}
+      >
+        <Feather name="video" size={24} color={theme.colors.textSecondary} />
+        <Text style={[styles.videoLabel, { color: theme.colors.textSecondary }]}>
+          {attachment.filename || 'video.mp4'}
+        </Text>
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <TouchableOpacity
+      style={[styles.attachmentThumb, { backgroundColor: theme.colors.surface }]}
+      onPress={() => openAttachment(attachment)}
+      activeOpacity={0.8}
+    >
+      <Image source={{ uri: thumbUri }} style={styles.attachmentImage} resizeMode="cover" />
+      <View style={styles.playOverlay}>
+        <View style={styles.playButton}>
+          <Feather name="play" size={28} color="#fff" />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
 
 /** Render a single attachment image thumbnail with tap-to-fullscreen */
 function AttachmentImage({ attachment }: { attachment: Attachment }) {
@@ -127,20 +206,20 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
           <AttachmentImage key={`img-${idx}`} attachment={att} />
         ))}
         {videoAttachments.map((att, idx) => (
-          <View key={`vid-${idx}`} style={[styles.videoPlaceholder, { backgroundColor: theme.colors.surface }]}>
-            <Feather name="video" size={24} color={theme.colors.textSecondary} />
-            <Text style={[styles.videoLabel, { color: theme.colors.textSecondary }]}>
-              {att.filename || 'video.mp4'}
-            </Text>
-          </View>
+          <AttachmentVideo key={`vid-${idx}`} attachment={att} />
         ))}
         {fileAttachments.map((att, idx) => (
-          <View key={`file-${idx}`} style={[styles.videoPlaceholder, { backgroundColor: theme.colors.surface }]}>
+          <TouchableOpacity
+            key={`file-${idx}`}
+            style={[styles.videoPlaceholder, { backgroundColor: theme.colors.surface }]}
+            onPress={() => openAttachment(att)}
+            activeOpacity={0.8}
+          >
             <Feather name="file-text" size={24} color={theme.colors.textSecondary} />
             <Text style={[styles.videoLabel, { color: theme.colors.textSecondary }]}>
               {att.filename || 'file'}
             </Text>
-          </View>
+          </TouchableOpacity>
         ))}
       </View>
     );
@@ -303,6 +382,20 @@ const styles = StyleSheet.create({
   videoLabel: {
     fontSize: 14,
     fontWeight: '300',
+  },
+  // Video play overlay
+  playOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  playButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   // Lightbox
   lightboxContainer: {

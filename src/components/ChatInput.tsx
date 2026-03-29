@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
+import { readAsStringAsync, EncodingType } from 'expo-file-system/legacy';
 import { Attachment, MessageMetadata } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import staticTheme from '../constants/theme';
@@ -157,11 +158,11 @@ export default function ChatInput({
         // Read file as base64 so client bridge can save and pass to OpenClaw
         let base64Data = '';
         try {
-          base64Data = await FileSystem.readAsStringAsync(asset.uri, {
-            encoding: 'base64',
-          });
+          console.log('[file] Reading:', asset.uri, 'size:', asset.size);
+          base64Data = await readAsStringAsync(asset.uri, { encoding: EncodingType.Base64 });
+          console.log('[file] base64 length:', base64Data?.length ?? 0);
         } catch (e) {
-          console.warn('Could not read file as base64:', e);
+          console.error('[file] Could not read file:', e);
         }
         const attachment: Attachment = {
           type: 'file',
@@ -193,9 +194,7 @@ export default function ChatInput({
       const uri = result.assets[0].uri;
       let base64Data = '';
       try {
-        base64Data = await FileSystem.readAsStringAsync(uri, {
-          encoding: 'base64',
-        });
+        base64Data = await readAsStringAsync(uri, { encoding: EncodingType.Base64 });
       } catch (e) {
         console.warn('Could not read video as base64:', e);
       }
