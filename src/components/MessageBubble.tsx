@@ -81,20 +81,12 @@ function AttachmentVideo({ attachment }: { attachment: Attachment }) {
     return () => { cancelled = true; };
   }, [attachment]);
 
-  const handlePress = async () => {
-    try {
-      let path = cachedPath;
-      if (!path && attachment.data) {
-        path = await writeToCache(attachment);
-        setCachedPath(path);
-      }
-      if (path) {
-        setVideoUri('file://' + path);
-        setVideoModalVisible(true);
-      }
-    } catch {
-      // ignore
-    }
+  const handlePress = () => {
+    if (!attachment.data) return;
+    // Use data URI directly for playback — avoids re-writing large base64 to disk on the UI thread
+    const mimeType = attachment.mimeType || 'video/mp4';
+    setVideoUri(`data:${mimeType};base64,${attachment.data}`);
+    setVideoModalVisible(true);
   };
 
   if (loading || !thumbUri) {
