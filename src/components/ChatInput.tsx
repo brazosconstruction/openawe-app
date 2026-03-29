@@ -8,6 +8,8 @@ import {
   Platform,
   Animated,
   ActionSheetIOS,
+  ScrollView,
+  Image,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -214,15 +216,35 @@ export default function ChatInput({
       },
     ]}>
       {pendingAttachments.length > 0 && (
-        <View style={styles.attachmentBadge}>
-          <Feather name="paperclip" size={12} color={theme.colors.accent} />
-          <TouchableOpacity
-            onPress={() => setPendingAttachments([])}
-            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-          >
-            <Feather name="x" size={12} color={theme.colors.textTertiary} style={styles.badgeX} />
-          </TouchableOpacity>
-        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.previewStrip}
+          contentContainerStyle={styles.previewStripContent}
+        >
+          {pendingAttachments.map((att, idx) => (
+            <View key={idx} style={[styles.previewItem, { backgroundColor: theme.colors.surface }]}>
+              {att.type === 'image' && att.data ? (
+                <Image
+                  source={{ uri: `data:${att.mimeType};base64,${att.data}` }}
+                  style={styles.previewImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={[styles.previewFilePlaceholder, { backgroundColor: theme.colors.surfaceElevated }]}>
+                  <Feather name="file" size={20} color={theme.colors.textTertiary} />
+                </View>
+              )}
+              <TouchableOpacity
+                style={[styles.previewRemove, { backgroundColor: theme.colors.textSecondary }]}
+                onPress={() => setPendingAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+              >
+                <Feather name="x" size={10} color={theme.colors.background} />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </ScrollView>
       )}
       <View style={styles.row}>
         {/* Attachment button */}
@@ -296,15 +318,39 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: Platform.OS === 'ios' ? 34 : 12,
   },
-  attachmentBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 6,
+  previewStrip: {
+    marginBottom: 8,
+  },
+  previewStripContent: {
+    gap: 8,
     paddingHorizontal: 2,
   },
-  badgeX: {
-    marginLeft: 4,
+  previewItem: {
+    width: 64,
+    height: 64,
+    borderRadius: 8,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  previewImage: {
+    width: 64,
+    height: 64,
+  },
+  previewFilePlaceholder: {
+    width: 64,
+    height: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewRemove: {
+    position: 'absolute',
+    top: 3,
+    right: 3,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   row: {
     flexDirection: 'row',

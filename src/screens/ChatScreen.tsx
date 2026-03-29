@@ -200,7 +200,7 @@ export default function ChatScreen() {
         text: text.trim(),
         timestamp: Date.now(),
         isUser: true,
-        type: hasAttachments ? 'image' : ((metadata?.type as Message['type']) || 'text'),
+        type: (metadata?.type as Message['type']) || 'text',
         metadata,
         attachments,
       };
