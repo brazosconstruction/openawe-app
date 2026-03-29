@@ -20,7 +20,7 @@ import MessageBubble from '../components/MessageBubble';
 import ConnectionIndicator from '../components/ConnectionIndicator';
 import ChatInput from '../components/ChatInput';
 import { useTheme } from '../contexts/ThemeContext';
-import { darkTheme as theme } from '../constants/theme';
+import { darkTheme as staticTheme } from '../constants/theme';
 
 // Thinking wave animation — 3 bars that pulse in sequence
 function ThinkingIndicator() {
@@ -247,7 +247,7 @@ export default function ChatScreen() {
           data={messages}
           renderItem={renderMessage}
           keyExtractor={(item) => item.id}
-          style={styles.messagesList}
+          style={[styles.messagesList, { backgroundColor: theme.colors.background }]}
           contentContainerStyle={[
             styles.messagesContent,
             messages.length === 0 && styles.messagesEmpty,
@@ -277,7 +277,6 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
   },
   chatContainer: {
     flex: 1,
@@ -304,19 +303,17 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '200',
     letterSpacing: 4,
-    color: theme.colors.textTertiary,
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 14,
     fontWeight: '300',
-    color: theme.colors.textMuted,
     letterSpacing: 0.5,
   },
 
   // Thinking indicator
   thinkingContainer: {
-    paddingHorizontal: theme.spacing.md + 4,
+    paddingHorizontal: staticTheme.spacing.md + 4,
     paddingVertical: 12,
   },
   thinkingRow: {
@@ -329,6 +326,5 @@ const styles = StyleSheet.create({
     width: 3,
     height: 16,
     borderRadius: 1.5,
-    backgroundColor: theme.colors.textTertiary,
   },
 });

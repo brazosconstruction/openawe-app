@@ -87,7 +87,9 @@ export const lightColors = {
   white60: 'rgba(0, 0, 0, 0.60)',
 } as const;
 
-export type ThemeColors = typeof darkColors;
+export type ThemeColors = {
+  [K in keyof typeof darkColors]: string;
+};
 
 const makeTypography = (colors: ThemeColors) => ({
   // Display — app name on pairing screen

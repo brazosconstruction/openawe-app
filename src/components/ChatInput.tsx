@@ -15,7 +15,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as DocumentPicker from 'expo-document-picker';
 import { Attachment, MessageMetadata } from '../types';
-import theme from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
+import staticTheme from '../constants/theme';
 
 interface ChatInputProps {
   value: string;
@@ -32,6 +33,7 @@ export default function ChatInput({
   disabled = false,
   placeholder = 'Message...',
 }: ChatInputProps) {
+  const { theme, isDark } = useTheme();
   const [isFocused, setIsFocused] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const sendScale = useRef(new Animated.Value(1)).current;
@@ -187,7 +189,7 @@ export default function ChatInput({
     }
   };
 
-  // Animated styles
+  // Animated styles — use live theme colors
   const inputBorderColor = focusProgress.interpolate({
     inputRange: [0, 1],
     outputRange: [theme.colors.border, theme.colors.borderFocus],
@@ -204,7 +206,13 @@ export default function ChatInput({
     : theme.colors.textTertiary;
 
   return (
-    <View style={styles.container}>
+    <View style={[
+      styles.container,
+      {
+        backgroundColor: theme.colors.background,
+        borderTopColor: theme.colors.border,
+      },
+    ]}>
       {pendingAttachments.length > 0 && (
         <View style={styles.attachmentBadge}>
           <Feather name="paperclip" size={12} color={theme.colors.accent} />
@@ -229,13 +237,22 @@ export default function ChatInput({
         </TouchableOpacity>
 
         {/* Text input */}
-        <Animated.View style={[styles.inputWrapper, { borderColor: inputBorderColor }]}>
+        <Animated.View style={[
+          styles.inputWrapper,
+          {
+            borderColor: inputBorderColor,
+            backgroundColor: theme.colors.surface,
+          },
+        ]}>
           <TextInput
-            style={styles.textInput}
+            style={[
+              styles.textInput,
+              { color: theme.colors.textPrimary },
+            ]}
             value={value}
             onChangeText={onChangeText}
             placeholder={placeholder}
-            placeholderTextColor={theme.colors.textMuted}
+            placeholderTextColor={theme.colors.textTertiary}
             multiline
             maxLength={2000}
             editable={!disabled}
@@ -243,7 +260,7 @@ export default function ChatInput({
             onBlur={() => setIsFocused(false)}
             textAlignVertical="center"
             selectionColor={theme.colors.white40}
-            keyboardAppearance="dark"
+            keyboardAppearance={isDark ? 'dark' : 'light'}
           />
         </Animated.View>
 
@@ -274,9 +291,7 @@ export default function ChatInput({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: theme.colors.background,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: theme.colors.border,
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: Platform.OS === 'ios' ? 34 : 12,
@@ -305,16 +320,13 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flex: 1,
     borderWidth: 1,
-    borderColor: theme.colors.border,
     borderRadius: 20,
-    backgroundColor: theme.colors.surface,
   },
   textInput: {
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 16,
     fontWeight: '300',
-    color: theme.colors.textPrimary,
     maxHeight: 100,
     minHeight: 36,
   },
